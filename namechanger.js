@@ -1,5 +1,29 @@
-// TODO: 세션에 캐싱
-const nameMap = new Map();
+const useNameMapManager = () => {
+    const NAME_MAP_STORAGE_KEY = 'namemap'
+    const storage = chrome.storage.session
+    let nameMap = null;
+
+    storage.clear();
+
+    const getNameMap = async () => {
+        if (!nameMap) {
+            nameMap = new Map(Object.entries((await chrome.storage?.session.get([NAME_MAP_STORAGE_KEY]))?.[NAME_MAP_STORAGE_KEY] ?? new Map()))
+        }
+        return nameMap
+    }
+
+    const updateNameMap = async (nameMap) => {
+        await storage.set({[NAME_MAP_STORAGE_KEY]: Object.fromEntries(nameMap)})
+    }
+
+    return {getNameMap, updateNameMap}
+}
+
+const {getNameMap, updateNameMap} = useNameMapManager();
+(async () => {
+    await getNameMap()
+})();
+
 
 const getUsername = async (id) => {
     const request = new Request(`https://github.com/users/${id}/hovercard?subject=repository%3A4644745&current_path=%2FGoogleChrome%2Fchrome-extensions-samples%2Fpulls`)
@@ -32,6 +56,8 @@ const getAllNameElements = () => {
 }
 
 const setNameToElement = async () => {
+    const nameMap = await getNameMap()
+
     const elementUserIDPair = getAllNameElements();
     await Promise.all(elementUserIDPair
         .filter(([_, id]) => !nameMap.has(id))
@@ -39,7 +65,10 @@ const setNameToElement = async () => {
             new Promise((resolve) => resolve(getUsername(id)))
                 .then(name => nameMap.set(id, name))
         ))
+
     elementUserIDPair.forEach(([element, userId]) => element.innerText = nameMap.get(userId));
+
+    void updateNameMap(nameMap)
 }
 
 chrome.runtime.onMessage.addListener(

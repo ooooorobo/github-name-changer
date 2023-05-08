@@ -16,6 +16,6 @@
     "16": "icon.png"
   },
   "permissions": [
-    "tabs"
+    "tabs", "storage"
   ]
 }
