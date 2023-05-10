@@ -26,7 +26,7 @@ const {getNameMap, updateNameMap} = useNameMapManager();
 
 
 const getUsername = async (id) => {
-    const request = new Request(`https://github.com/users/${id}/hovercard?subject=repository%3A4644745&current_path=%2FGoogleChrome%2Fchrome-extensions-samples%2Fpulls`)
+    const request = new Request(`https://github.com/users/${id}/hovercard`)
     request.headers.append('X-Requested-With', 'XMLHttpRequest')
     const response = await self.fetch(request)
     const text = await response.text();
@@ -52,29 +52,57 @@ const getAllNameElements = () => {
         [...document.querySelectorAll('a.assignee')]
     ).map(e => [e.querySelector('span'), e.href.slice(e.href.lastIndexOf('/') + 1, e.href.length)])
 
-    return [...comments, ...commitAuthor, ...assignee];
+    return [...comments, ...commitAuthor, ...assignee].filter(([elem, id]) => elem.innerText === id);
 }
 
-const setNameToElement = async () => {
-    const nameMap = await getNameMap()
+const useSetName = () => {
+    const sliceCount = 5;
 
-    const elementUserIDPair = getAllNameElements();
-    await Promise.all(elementUserIDPair
-        .filter(([_, id]) => !nameMap.has(id))
-        .map(([_, id]) =>
-            new Promise((resolve) => resolve(getUsername(id)))
-                .then(name => nameMap.set(id, name))
-        ))
+    const setNameToElement = async () => {
+        const nameMap = await getNameMap()
 
-    elementUserIDPair.forEach(([element, userId]) => element.innerText = nameMap.get(userId));
+        const elementUserIDPair = getAllNameElements();
+        if (elementUserIDPair.length === 0) {
+            return;
+        }
 
-    void updateNameMap(nameMap)
+        const idListToFind = Array.from(new Set(elementUserIDPair
+            .map(([_, id]) => id)
+            .filter((id) => !nameMap.has(id))
+        ));
+
+        for (const i of Array.from({length: Math.ceil(idListToFind.length / sliceCount)}).map((_, idx) => idx)) {
+            await Promise.all(
+                idListToFind.slice(i * sliceCount, (i + 1) * sliceCount).map(id =>
+                    new Promise((resolve) => resolve(getUsername(id))).then(name => nameMap.set(id, name))
+                )
+            )
+        }
+
+        elementUserIDPair.forEach(([element, userId]) => element.innerText = nameMap.get(userId));
+        void updateNameMap(nameMap)
+    }
+
+    const debounce = (func, timeout) => {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => func.apply(this, args), timeout);
+        }
+    }
+
+    return {setName: debounce(() => setNameToElement(), 300)}
 }
+
+const {setName} = useSetName();
+
+const observer = new MutationObserver(async () => setName())
+observer.observe(document.body, { attributes: false, childList: true, subtree: true })
 
 chrome.runtime.onMessage.addListener(
     async (request) => {
         if (request.message === 'load-complete') {
-            await setNameToElement();
+            setName();
         }
     });
 
