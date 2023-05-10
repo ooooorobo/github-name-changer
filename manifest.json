@@ -8,14 +8,22 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://github.com/*"],
-      "js": ["namechanger.js"]
+      "matches": [
+        "*://github.com/*"
+      ],
+      "js": [
+        "namechanger.js"
+      ]
     }
   ],
-  "icons": {
-    "16": "icon.png"
+  "action": {
+    "default_icon": {
+      "16": "16.png",
+      "32": "32.png"
+    }
   },
   "permissions": [
-    "tabs", "storage"
+    "tabs",
+    "storage"
   ]
 }
